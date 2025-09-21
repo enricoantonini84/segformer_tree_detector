@@ -162,6 +162,7 @@ Convert JSON detection files to GeoJSON format:
 python json_to_geojson.py \
     --input ./results/json \
     --output ./results/detections.geojson
+```
 
 ### Core Components
 
