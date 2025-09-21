@@ -2,6 +2,8 @@
 
 An AI-powered tree detection system using SegFormer semantic segmentation model for satellite imagery analysis. This repository provides tools for training custom SegFormer models and running inference pipelines on GeoTIFF satellite images to detect and map tree coverage.
 
+**Note:** This project was developed as part of my Bachelor's Thesis in Computer Science for academic research purposes. It is not intended for commercial use.
+
 ## Project Overview
 
 This project leverages [Hugging Face's SegFormer implementation](https://github.com/huggingface/transformers) to perform semantic segmentation for tree detection in satellite imagery. The system uses the [`nvidia/mit-b3`](https://huggingface.co/nvidia/mit-b3) model from Hugging Face Hub and can process both single images and batch folders of GeoTIFF tiles, producing detailed tree coverage maps with polygon extraction and GeoJSON output for GIS integration.
@@ -154,16 +156,6 @@ python inference_pipeline.py \
 - Generates GeoJSON files for GIS integration
 - Creates annotated overlay images
 
-### Convert Detection Results to GeoJSON
-
-Convert JSON detection files to GeoJSON format:
-
-```bash
-python json_to_geojson.py \
-    --input ./results/json \
-    --output ./results/detections.geojson
-```
-
 ### Core Components
 
 #### `sf/train.py`
@@ -297,20 +289,38 @@ results = pipeline.runPipeline(
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project's code is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
-**License Notes:**
-- This project uses [Hugging Face Transformers](https://github.com/huggingface/transformers) (Apache 2.0 license)
-- SegFormer model weights are used through [Hugging Face Hub](https://huggingface.co/nvidia/mit-b3) (publicly available)
-- Your custom training and inference code is Apache 2.0 licensed
-- Free for commercial and non-commercial use
-- Must include license and copyright notice when redistributing
+**DISCLAIMER:** This software is designed to work with `nvidia/mit-b3` model weights from Hugging Face Hub, which are subject to NVIDIA Source Code License (non-commercial use only). The use of this software with nvidia/mit-b3 weights is subject to their original licenses. **Users are responsible for complying with the licenses of the models they use.**
+
+### License Breakdown:
+- **This codebase**: Apache 2.0 (free for commercial and non-commercial use)
+- **NVIDIA MIT-B3 weights**: NVIDIA Source Code License (non-commercial use only)
+- **Hugging Face Transformers library**: Apache 2.0
+
+### For Commercial Use:
+✅ **You CAN**:
+- Use this code commercially with your own trained models
+- Use this code commercially with other SegFormer models that have permissive licenses
+- Modify and distribute this codebase under Apache 2.0
+
+❌ **You CANNOT**:
+- Use NVIDIA's pre-trained MIT-B3 weights for commercial purposes
+- Include NVIDIA's weights in commercial products without their permission
+
+### Recommended Approach:
+1. **For research/evaluation**: Use freely with NVIDIA weights
+2. **For commercial use**:
+   - Train your own model from scratch using this codebase, OR
+   - Use alternative pre-trained models with commercial-friendly licenses
 
 ---
 
 # SegFormer Tree Detector (Italiano)
 
 Un sistema di rilevamento alberi basato su AI che utilizza il modello di segmentazione semantica SegFormer per l'analisi di immagini satellitari. Questo repository fornisce strumenti per addestrare modelli SegFormer personalizzati ed eseguire pipeline di inferenza su immagini satellitari GeoTIFF per rilevare e mappare la copertura arborea.
+
+**Nota:** Questo progetto è stato sviluppato come parte della mia Tesi di Laurea Triennale in Informatica per scopi di ricerca accademica. Non è inteso per uso commerciale.
 
 ## Panoramica del Progetto
 
@@ -437,13 +447,216 @@ python inference_pipeline.py \
     --confidence 0.5
 ```
 
+**Basato su:**
+- [Hugging Face Transformers](https://github.com/huggingface/transformers) - Libreria ML all'avanguardia
+- [SegFormer](https://arxiv.org/abs/2105.15203) - "SegFormer: Simple and Efficient Design for Semantic Segmentation with Transformers"
+- [MIT-B3 Model](https://huggingface.co/nvidia/mit-b3) - Pesi SegFormer pre-addestrati
+
+**Caratteristiche Pipeline:**
+- Elabora file singoli o intere directory
+- Preserva i metadati geospaziali GeoTIFF
+- Converte le maschere di rilevamento in coordinate poligonali
+- Trasforma le coordinate pixel in coordinate geografiche
+- Genera file GeoJSON per l'integrazione GIS
+- Crea immagini overlay annotate
+
+### Conversione Risultati di Rilevamento in GeoJSON
+
+Converti file JSON di rilevamento in formato GeoJSON:
+
+```bash
+python json_to_geojson.py \
+    --input ./results/json \
+    --output ./results/detections.geojson
+```
+
+### Componenti Principali
+
+#### `sf/train.py`
+- **Scopo**: Addestra modelli SegFormer personalizzati sui tuoi dataset
+- **Caratteristiche**: Caricamento automatico dati, preprocessing con processori HuggingFace, divisioni train/validation/test
+- **Funzioni Chiave**:
+  - `loadDataSimple()`: Carica immagini e maschere dalla struttura directory
+  - `preprocessData()`: Applica trasformazioni HuggingFace e crea dataset
+  - `trainSegformer()`: Pipeline di addestramento completa con parametri ottimizzati
+
+#### `sf/inference.py`
+- **Scopo**: Funzionalità di inferenza principale con classe SegFormerInference
+- **Caratteristiche**: Operazioni tensor ottimizzate, caricamento modelli safetensors, visualizzazione
+- **Classe Chiave**: `SegFormerInference`
+  - Carica solo modelli safetensors (formato pronto per produzione)
+  - Post-processing efficiente con interpolazione PyTorch
+  - Soglia basata su confidenza per rilevamento alberi
+  - Visualizzazione e statistiche integrate
+
+#### `inference_pipeline.py`
+- **Scopo**: Pipeline di produzione per elaborazione batch e generazione GeoJSON
+- **Caratteristiche**: Supporto GeoTIFF, trasformazione coordinate, estrazione poligoni
+- **Funzioni Chiave**:
+  - `segformerDetector()`: Elabora singole immagini con consapevolezza geospaziale
+  - `maskToPolygons()`: Converte maschere binarie in coordinate poligonali
+  - `TreeDetectionPipeline`: Orchestrazione pipeline completa
+
+#### `json_to_geojson.py`
+- **Scopo**: Converte risultati di rilevamento in formati compatibili GIS
+- **Caratteristiche**: Trasformazione poligoni, gestione CRS, unione multi-file
+- **Funzioni Chiave**:
+  - `segformerToGeoJsonFeature()`: Converte rilevamenti in feature GeoJSON
+  - `mergeJsonToGeoJson()`: Combina più file di rilevamento
+
+## Opzioni di Configurazione
+
+### Parametri Inferenza
+- `--confidence`: Soglia di confidenza rilevamento (0.0-1.0, default: 0.5)
+- `--batch`: Abilita elaborazione batch di directory
+- `--no_visualize`: Disabilita output visualizzazione
+- `--output_dir`: Specifica directory output
+
+### Parametri Pipeline
+- `--no-images`: Salta salvataggio immagini overlay annotate
+- `--no-json`: Salta salvataggio file JSON rilevamento
+- `--no-geojson`: Salta conversione GeoJSON
+- `--verbose`: Abilita logging dettagliato
+
+### Parametri Addestramento
+- `--epochs`: Numero di epoche di addestramento
+- `--learning_rate`: Tasso di apprendimento ottimizzatore
+- `--batch_size`: Dimensione batch addestramento
+- Ottimizzazione GPU: Precisione mista automatica, ottimizzatori fused, caricamento dati parallelo
+
+## Formati Output
+
+### Output Inferenza Diretta
+- **Maschere Binarie**: `{basename}_ultra_mask.png` - Maschere binarie albero/non-albero
+- **Maschere Colorate**: `{basename}_ultra_colored_mask.png` - Segmentazione visualizzata
+- **Grafici Analisi**: `{basename}_ultra_sensitive_results.png` - Heatmap probabilità e statistiche
+
+### Output Pipeline
+```
+output/
+├── annotated/
+│   ├── image1_segformer_annotated.tif    # Immagini overlay
+│   └── image2_segformer_annotated.tif
+├── json/
+│   ├── image1_results.json               # Dati rilevamento
+│   ├── image2_results.json
+│   ├── pipeline_summary.json             # Statistiche elaborazione
+│   └── detections.geojson               # GeoJSON combinato
+```
+
+### Struttura Dati Rilevamento
+```json
+{
+  "image_path": "path/to/image.tif",
+  "model_type": "segformer",
+  "confidence_threshold": 0.5,
+  "trees_detected": 25,
+  "tree_coverage_percent": 12.5,
+  "polygons": [[[x1,y1], [x2,y2], ...]],
+  "geo_polygons": [{"polygon": [[lon1,lat1], [lon2,lat2], ...]}],
+  "crs": "EPSG:4326",
+  "transform": [...]
+}
+```
+
+## Utilizzo Avanzato
+
+### Integrazione Modello Personalizzato
+```python
+from sf.inference import SegFormerInference
+
+# Inizializza con modello personalizzato
+segformer = SegFormerInference(
+    modelPath="./my_model.safetensors",
+    numClasses=2,
+    confidence=0.7
+)
+
+# Elabora immagine
+mask, colored_mask = segformer.predict(
+    imagePath="satellite_image.tif",
+    outputDir="./results",
+    visualize=True
+)
+```
+
+### Elaborazione Batch con Logica Personalizzata
+```python
+from inference_pipeline import TreeDetectionPipeline
+
+# Inizializza pipeline
+pipeline = TreeDetectionPipeline(
+    modelType="segformer",
+    modelPath="./model.safetensors",
+    confidence=0.6
+)
+
+# Esegui pipeline completa
+results = pipeline.runPipeline(
+    inputPath="/path/to/geotiff/folder",
+    outputFolder="./results",
+    saveImages=True,
+    saveJson=True,
+    createGeojson=True
+)
+```
+
+## Risoluzione Problemi
+
+### Problemi Comuni
+
+**Problemi Memoria GPU**
+- Riduci batch size nell'addestramento: `--batch_size 1`
+- Usa accumulo gradiente (configurato automaticamente)
+- Elabora tile immagine più piccoli
+
+**Errori Caricamento Modello**
+- Assicurati che il percorso modello punti al file `.safetensors`
+- Verifica che il modello sia stato addestrato con versione SegFormer compatibile
+- Controlla compatibilità CUDA per inferenza GPU
+
+**Problemi Elaborazione GeoTIFF**
+- Verifica installazione rasterio: `pip install rasterio`
+- Controlla permessi file e percorsi
+- Assicurati che i file GeoTIFF abbiano informazioni CRS valide
+
+### Ottimizzazione Prestazioni
+
+**Velocità Addestramento**
+- Usa GPU compatibile CUDA
+- Aumenta batch size se la memoria lo permette
+- Abilita addestramento precisione mista (automatico)
+- Usa ottimizzatori fused (automatico su GPU)
+
+**Velocità Inferenza**
+- Usa formato modello safetensors (default)
+- Elabora più immagini in batch
+- Disabilita visualizzazione per produzione: `--no_visualize`
+- Usa soglie di confidenza appropriate
+
 ## Licenza
 
-Questo progetto è licenziato sotto la Apache License 2.0 - vedi il file [LICENSE](LICENSE) per i dettagli.
+Il codice di questo progetto è licenziato sotto la Apache License 2.0 - vedi il file [LICENSE](LICENSE) per i dettagli.
 
-**Note sulla Licenza:**
-- Questo progetto utilizza [Hugging Face Transformers](https://github.com/huggingface/transformers) (licenza Apache 2.0)
-- I pesi del modello SegFormer sono utilizzati tramite [Hugging Face Hub](https://huggingface.co/nvidia/mit-b3) (pubblicamente disponibili)
-- Il tuo codice personalizzato di training e inferenza è sotto licenza Apache 2.0
-- Libero per uso commerciale e non commerciale
-- Deve includere avviso di licenza e copyright quando ridistribuito
+**DISCLAIMER:** Questo software è progettato per funzionare con i pesi del modello `nvidia/mit-b3` da Hugging Face Hub, che sono soggetti alla NVIDIA Source Code License (solo uso non commerciale). L'utilizzo di questo software con i pesi nvidia/mit-b3 è soggetto alle loro licenze originali. **L'utente è responsabile del rispetto delle licenze dei modelli utilizzati.**
+
+### Dettaglio Licenze:
+- **Questo codebase**: Apache 2.0 (libero per uso commerciale e non commerciale)
+- **Pesi NVIDIA MIT-B3**: NVIDIA Source Code License (solo uso non commerciale)
+- **Libreria Hugging Face Transformers**: Apache 2.0
+
+### Per Uso Commerciale:
+✅ **PUOI**:
+- Usare questo codice commercialmente con i tuoi modelli addestrati
+- Usare questo codice commercialmente con altri modelli SegFormer con licenze permissive
+- Modificare e distribuire questo codebase sotto Apache 2.0
+
+❌ **NON PUOI**:
+- Usare i pesi pre-addestrati MIT-B3 di NVIDIA per scopi commerciali
+- Includere i pesi NVIDIA in prodotti commerciali senza il loro permesso
+
+### Approccio Consigliato:
+1. **Per ricerca/valutazione**: Usa liberamente con i pesi NVIDIA
+2. **Per uso commerciale**:
+   - Addestra il tuo modello da zero usando questo codebase, OPPURE
+   - Usa modelli pre-addestrati alternativi con licenze commerciali permissive
