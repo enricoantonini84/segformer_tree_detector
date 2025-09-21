@@ -298,22 +298,6 @@ This project's code is licensed under the Apache License 2.0 - see the [LICENSE]
 - **NVIDIA MIT-B3 weights**: NVIDIA Source Code License (non-commercial use only)
 - **Hugging Face Transformers library**: Apache 2.0
 
-### For Commercial Use:
-✅ **You CAN**:
-- Use this code commercially with your own trained models
-- Use this code commercially with other SegFormer models that have permissive licenses
-- Modify and distribute this codebase under Apache 2.0
-
-❌ **You CANNOT**:
-- Use NVIDIA's pre-trained MIT-B3 weights for commercial purposes
-- Include NVIDIA's weights in commercial products without their permission
-
-### Recommended Approach:
-1. **For research/evaluation**: Use freely with NVIDIA weights
-2. **For commercial use**:
-   - Train your own model from scratch using this codebase, OR
-   - Use alternative pre-trained models with commercial-friendly licenses
-
 ---
 
 # SegFormer Tree Detector (Italiano)
@@ -644,19 +628,3 @@ Il codice di questo progetto è licenziato sotto la Apache License 2.0 - vedi il
 - **Questo codebase**: Apache 2.0 (libero per uso commerciale e non commerciale)
 - **Pesi NVIDIA MIT-B3**: NVIDIA Source Code License (solo uso non commerciale)
 - **Libreria Hugging Face Transformers**: Apache 2.0
-
-### Per Uso Commerciale:
-✅ **PUOI**:
-- Usare questo codice commercialmente con i tuoi modelli addestrati
-- Usare questo codice commercialmente con altri modelli SegFormer con licenze permissive
-- Modificare e distribuire questo codebase sotto Apache 2.0
-
-❌ **NON PUOI**:
-- Usare i pesi pre-addestrati MIT-B3 di NVIDIA per scopi commerciali
-- Includere i pesi NVIDIA in prodotti commerciali senza il loro permesso
-
-### Approccio Consigliato:
-1. **Per ricerca/valutazione**: Usa liberamente con i pesi NVIDIA
-2. **Per uso commerciale**:
-   - Addestra il tuo modello da zero usando questo codebase, OPPURE
-   - Usa modelli pre-addestrati alternativi con licenze commerciali permissive
