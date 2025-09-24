@@ -14,21 +14,76 @@ from transformers import (
     SegformerForSemanticSegmentation,
     SegformerImageProcessor
 )
+from huggingface_hub import hf_hub_download
+from transformers.utils import CONFIG_NAME
 import matplotlib.pyplot as plt
 from typing import Optional, Tuple
+import shutil
+import time
 
 # set environment variables to help with HuggingFace caching and rate limiting
 os.environ['TRANSFORMERS_CACHE'] = os.path.expanduser('~/.cache/huggingface')
 os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = 'true'
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = 'true'
+
+# Additional caching directory for model configurations
+MODEL_CACHE_DIR = os.path.expanduser('~/.cache/segformer_models')
+os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Using official Hugging Face SegFormer implementation
+# Using official Hugging Face SegFormer implementation with enhanced caching
 class SegFormerInference:
-    # Class-level cache for processor to avoid multiple downloads
+    # Class-level cache for processor and base model to avoid multiple downloads
     _processor_cache = None
+    _base_model_cache = None
+    _last_cache_check = 0
+    _cache_check_interval = 300  # 5 minutes
+    
+    @classmethod
+    def _ensure_model_cached(cls, model_name="nvidia/mit-b3"):
+        """Ensure the model configuration and processor are cached locally."""
+        current_time = time.time()
+        
+        # Only check cache periodically to avoid repeated filesystem operations
+        if current_time - cls._last_cache_check < cls._cache_check_interval and cls._processor_cache is not None:
+            return
+        
+        cls._last_cache_check = current_time
+        config_cache_path = os.path.join(MODEL_CACHE_DIR, f"{model_name.replace('/', '_')}_config.json")
+        
+        # Download and cache config if not exists
+        if not os.path.exists(config_cache_path):
+            try:
+                print(f"Downloading and caching config for {model_name}...")
+                downloaded_config = hf_hub_download(
+                    repo_id=model_name,
+                    filename=CONFIG_NAME,
+                    cache_dir=MODEL_CACHE_DIR,
+                    local_files_only=False
+                )
+                shutil.copy2(downloaded_config, config_cache_path)
+                print(f"Config cached to {config_cache_path}")
+            except Exception as e:
+                print(f"Warning: Could not cache config: {e}")
+        
+        # Load processor with enhanced caching
+        if cls._processor_cache is None:
+            print("Loading SegFormer processor (one-time setup)...")
+            try:
+                cls._processor_cache = SegformerImageProcessor.from_pretrained(
+                    model_name,
+                    cache_dir=os.environ['TRANSFORMERS_CACHE'],
+                    local_files_only=False
+                )
+                print("Processor loaded and cached successfully")
+            except Exception as e:
+                print(f"Error loading processor: {e}")
+                # Retry with longer timeout
+                time.sleep(2)
+                cls._processor_cache = SegformerImageProcessor.from_pretrained(model_name)
     
     def __init__(self, modelPath: str, numClasses: int = 2, inputSize: Tuple[int, int] = (512, 512),
                  confidence: float = 0.5):
@@ -38,11 +93,11 @@ class SegFormerInference:
         self.confidence = confidence
         self.device = device
         
-        # Use cached processor to avoid multiple HuggingFace requests
-        if SegFormerInference._processor_cache is None:
-            print("Loading SegFormer processor from HuggingFace (one-time download)...")
-            SegFormerInference._processor_cache = SegformerImageProcessor.from_pretrained("nvidia/mit-b3")
-        self.imageProcessor = SegFormerInference._processor_cache
+        # Ensure model is cached before proceeding
+        self._ensure_model_cached()
+        
+        # Use cached processor
+        self.imageProcessor = self._processor_cache
         
         # load model (this will handle the model loading once)
         self.model = self.loadModel()
@@ -60,13 +115,56 @@ class SegFormerInference:
         if not os.path.exists(self.modelPath) or not self.modelPath.endswith('.safetensors'):
             raise ValueError(f"Model path must be a .safetensors file. Got: {self.modelPath}")
         
-        # Load base model
-        print("Loading base SegFormer model...")
-        model = SegformerForSemanticSegmentation.from_pretrained(
-            "nvidia/mit-b3",
-            num_labels=self.numClasses,
-            ignore_mismatched_sizes=True
-        )
+        # Use cached base model if available
+        if self._base_model_cache is None:
+            print("Loading base SegFormer model with enhanced caching...")
+            try:
+                # Try loading from cache first (offline mode)
+                self._base_model_cache = SegformerForSemanticSegmentation.from_pretrained(
+                    "nvidia/mit-b3",
+                    num_labels=self.numClasses,
+                    ignore_mismatched_sizes=True,
+                    cache_dir=os.environ['TRANSFORMERS_CACHE'],
+                    local_files_only=True
+                )
+                print("Base model loaded from cache successfully")
+            except Exception as cache_e:
+                print(f"Cache miss for base model: {cache_e}")
+                print("Downloading base model...")
+                
+                # Temporarily enable online mode for download
+                old_offline = os.environ.get('HF_HUB_OFFLINE', '0')
+                old_transformers_offline = os.environ.get('TRANSFORMERS_OFFLINE', '0')
+                os.environ['HF_HUB_OFFLINE'] = '0'
+                os.environ['TRANSFORMERS_OFFLINE'] = '0'
+                
+                try:
+                    self._base_model_cache = SegformerForSemanticSegmentation.from_pretrained(
+                        "nvidia/mit-b3",
+                        num_labels=self.numClasses,
+                        ignore_mismatched_sizes=True,
+                        cache_dir=os.environ['TRANSFORMERS_CACHE'],
+                        local_files_only=False
+                    )
+                    print("Base model downloaded and cached successfully")
+                finally:
+                    # Restore offline mode
+                    os.environ['HF_HUB_OFFLINE'] = old_offline
+                    os.environ['TRANSFORMERS_OFFLINE'] = old_transformers_offline
+        
+        # Create a new instance from the cached model
+        try:
+            model = SegformerForSemanticSegmentation.from_pretrained(
+                "nvidia/mit-b3",
+                num_labels=self.numClasses,
+                ignore_mismatched_sizes=True,
+                cache_dir=os.environ['TRANSFORMERS_CACHE'],
+                local_files_only=True  # Force offline loading
+            )
+        except Exception as e:
+            print(f"Error creating model instance from cache: {e}")
+            # Use the cached instance directly if we can't create a new one
+            model = self._base_model_cache
         
         # Load fine-tuned weights
         print(f"Loading fine-tuned weights from {self.modelPath}")

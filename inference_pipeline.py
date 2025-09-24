@@ -37,8 +37,7 @@ def segformerDetector(imagePath: str,
     segformer = SegFormerInference(
         modelPath=modelPath,
         numClasses=2,
-        confidence=conf,
-        debug=False
+        confidence=conf
     )
     
     # read image and get geospatial info if it's a GeoTIFF
