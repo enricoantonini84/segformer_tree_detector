@@ -111,68 +111,18 @@ class SegFormerInference:
     #load safetensor file model trained by train.py
     def loadModel(self) -> nn.Module:
         print(f"Loading model from {self.modelPath}")
-        
+
         if not os.path.exists(self.modelPath) or not self.modelPath.endswith('.safetensors'):
             raise ValueError(f"Model path must be a .safetensors file. Got: {self.modelPath}")
-        
-        # Use cached base model if available
-        if self._base_model_cache is None:
-            print("Loading base SegFormer model with enhanced caching...")
-            try:
-                # Try loading from cache first (offline mode)
-                self._base_model_cache = SegformerForSemanticSegmentation.from_pretrained(
-                    "nvidia/mit-b3",
-                    num_labels=self.numClasses,
-                    ignore_mismatched_sizes=True,
-                    cache_dir=os.environ['TRANSFORMERS_CACHE'],
-                    local_files_only=True
-                )
-                print("Base model loaded from cache successfully")
-            except Exception as cache_e:
-                print(f"Cache miss for base model: {cache_e}")
-                print("Downloading base model...")
-                
-                # Temporarily enable online mode for download
-                old_offline = os.environ.get('HF_HUB_OFFLINE', '0')
-                old_transformers_offline = os.environ.get('TRANSFORMERS_OFFLINE', '0')
-                os.environ['HF_HUB_OFFLINE'] = '0'
-                os.environ['TRANSFORMERS_OFFLINE'] = '0'
-                
-                try:
-                    self._base_model_cache = SegformerForSemanticSegmentation.from_pretrained(
-                        "nvidia/mit-b3",
-                        num_labels=self.numClasses,
-                        ignore_mismatched_sizes=True,
-                        cache_dir=os.environ['TRANSFORMERS_CACHE'],
-                        local_files_only=False
-                    )
-                    print("Base model downloaded and cached successfully")
-                finally:
-                    # Restore offline mode
-                    os.environ['HF_HUB_OFFLINE'] = old_offline
-                    os.environ['TRANSFORMERS_OFFLINE'] = old_transformers_offline
-        
-        # Create a new instance from the cached model
-        try:
-            model = SegformerForSemanticSegmentation.from_pretrained(
-                "nvidia/mit-b3",
-                num_labels=self.numClasses,
-                ignore_mismatched_sizes=True,
-                cache_dir=os.environ['TRANSFORMERS_CACHE'],
-                local_files_only=True  # Force offline loading
-            )
-        except Exception as e:
-            print(f"Error creating model instance from cache: {e}")
-            # Use the cached instance directly if we can't create a new one
-            model = self._base_model_cache
-        
-        # Load fine-tuned weights
-        print(f"Loading fine-tuned weights from {self.modelPath}")
-        from safetensors.torch import load_file
-        state_dict = load_file(self.modelPath)
-        model.load_state_dict(state_dict, strict=False)
-        print("Successfully loaded fine-tuned weights")
-        
+
+        modelDir = os.path.dirname(self.modelPath)
+        print("Loading fine-tuned model directly from checkpoint...")
+        model = SegformerForSemanticSegmentation.from_pretrained(
+            modelDir,
+            local_files_only=True
+        )
+        print("Model loaded successfully")
+
         model.to(self.device)
         model.eval()
         return model
@@ -334,13 +284,19 @@ class SegFormerInference:
         """Save inference results to files"""
         os.makedirs(outputDir, exist_ok=True)
         baseName = os.path.splitext(os.path.basename(imagePath))[0]
-        
+
         # Save binary mask
         cv2.imwrite(os.path.join(outputDir, f"{baseName}_ultra_mask.png"), mask * 255)
-        
+
         # Save colored mask
         cv2.imwrite(os.path.join(outputDir, f"{baseName}_ultra_colored_mask.png"),
                    cv2.cvtColor(coloredMask, cv2.COLOR_RGB2BGR))
+
+        # Save overlay (original image blended with colored mask)
+        original = cv2.imread(imagePath)
+        coloredMaskBgr = cv2.cvtColor(coloredMask, cv2.COLOR_RGB2BGR)
+        overlay = cv2.addWeighted(original, 0.4, coloredMaskBgr, 0.6, 0)
+        cv2.imwrite(os.path.join(outputDir, f"{baseName}_overlay.png"), overlay)
         
 if __name__ == "__main__":
     import argparse
